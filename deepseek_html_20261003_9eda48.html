@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python Typing Rain — Online</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#04070a;
+    font-family:'Segoe UI', Arial, sans-serif; color:#d8ffe9; }
+  #game { display:block; width:100vw; height:100vh; }
+
+  /* ============ Заставка ============ */
+  #splash {
+    position:fixed; inset:0; z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px;
+    background:#04070a; transition:opacity .7s ease;
+  }
+  #splash.hide { opacity:0; pointer-events:none; }
+  #splash img {
+    width:170px; height:170px; object-fit:contain;
+    filter: drop-shadow(0 0 40px rgba(0,255,140,.35));
+    animation: float 3s ease-in-out infinite, appear 1s ease;
+  }
+  @keyframes appear { from { opacity:0; transform:scale(.6); } to { opacity:1; transform:scale(1); } }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
+  #splash .label {
+    font-family:monospace; font-size:clamp(20px, 3.4vw, 34px);
+    letter-spacing:3px; color:#4dffa1; text-shadow:0 0 22px rgba(0,255,140,.55);
+    animation: appear 1.3s ease;
+  }
+  #splash .label b { color:#ffd479; text-shadow:0 0 22px rgba(255,212,121,.6); }
+  #splash .sub { font-family:monospace; font-size:14px; color:#6b8f83; letter-spacing:2px; }
+  #splash .bar {
+    width:220px; height:3px; margin-top:10px;
+    background:rgba(0,255,140,.12); border-radius:3px; overflow:hidden;
+  }
+  #splash .bar > i {
+    display:block; height:100%; width:0%;
+    background:linear-gradient(90deg,#22c46e,#5affa8);
+    box-shadow:0 0 12px rgba(90,255,168,.8);
+    animation: fill 2.4s ease forwards;
+  }
+  @keyframes fill { to { width:100%; } }
+
+  /* ============ МЕНЮ ============ */
+  #menu {
+    position:fixed; inset:0; z-index:40;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:18px; padding:24px;
+    background:radial-gradient(circle at 50% 15%, rgba(20,60,45,.35), transparent 55%),
+               linear-gradient(180deg,#060b10,#04080b);
+    transition:opacity .5s; overflow-y:auto;
+  }
+  #menu.hide { opacity:0; pointer-events:none; }
+  #menu .logo {
+    font-family:monospace; font-weight:bold;
+    font-size:clamp(28px, 5.4vw, 52px);
+    color:#4dffa1; letter-spacing:2px;
+    text-shadow:0 0 32px rgba(0,255,140,.6);
+    text-align:center; line-height:1.1;
+  }
+  #menu .logo span { color:#ffd479; text-shadow:0 0 26px rgba(255,212,121,.55); }
+  #menu .tag { color:#7fa39a; font-family:monospace; letter-spacing:2px; font-size:12px; }
+
+  .menu-grid {
+    display:grid; grid-template-columns: minmax(240px, 320px) minmax(300px, 400px);
+    gap:18px; width:min(780px, 94vw); align-items:start; margin-top:6px;
+  }
+  @media (max-width: 720px) { .menu-grid { grid-template-columns:1fr; } }
+
+  .panel {
+    background:rgba(10,22,26,.6); border:1px solid rgba(0,255,140,.18);
+    border-radius:14px; padding:16px 18px; backdrop-filter: blur(4px);
+  }
+  .panel h3 {
+    font-family:monospace; font-size:12px; letter-spacing:3px;
+    color:#7fa39a; text-transform:uppercase; margin-bottom:12px;
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .badge {
+    font-size:10px; padding:2px 8px; border-radius:20px;
+    background:rgba(75,201,255,.12); color:#4bc9ff;
+    border:1px solid rgba(75,201,255,.35); letter-spacing:1px;
+  }
+  .badge.err { background:rgba(255,90,110,.12); color:#ff8a98; border-color:rgba(255,90,110,.4); }
+  .badge.local { background:rgba(255,212,121,.1); color:#ffd479; border-color:rgba(255,212,121,.35); }
+
+  .stat-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 0; font-family:monospace; font-size:15px;
+    border-bottom:1px dashed rgba(0,255,140,.1);
+  }
+  .stat-row:last-child { border-bottom:none; }
+  .stat-row .k { color:#9fbfb3; font-size:12px; letter-spacing:1px; }
+  .stat-row .v { color:#5cff9d; font-weight:bold; font-size:17px; }
+  .stat-row .v.record { color:#ffd479; }
+
+  #lbList { display:flex; flex-direction:column; gap:6px; min-height:220px; }
+  .lb-row {
+    display:grid; grid-template-columns: 34px 1fr auto;
+    gap:10px; align-items:center;
+    padding:8px 10px; border-radius:9px;
+    background:rgba(0,0,0,.28);
+    font-family:monospace; font-size:14px;
+    border:1px solid transparent;
+  }
+  .lb-row.me { border-color:rgba(92,255,157,.5); background:rgba(92,255,157,.08); }
+  .lb-rank { text-align:center; font-weight:bold; color:#7fa39a; font-size:15px; }
+  .lb-rank.g1 { color:#ffd479; text-shadow:0 0 10px rgba(255,212,121,.7); }
+  .lb-rank.g2 { color:#c9d6dd; text-shadow:0 0 10px rgba(201,214,221,.55); }
+  .lb-rank.g3 { color:#e0a878; text-shadow:0 0 10px rgba(224,168,120,.55); }
+  .lb-name { color:#d8ffe9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-score { color:#5cff9d; font-weight:bold; }
+  .lb-empty, .lb-loading {
+    color:#5a7568; font-family:monospace; font-size:13px;
+    text-align:center; padding:30px 0; font-style:italic;
+  }
+  .lb-loading { color:#7fa39a; }
+
+  .btn-main {
+    width:100%; margin-top:14px;
+    padding:15px 30px; font-size:18px; font-family:monospace; font-weight:bold;
+    color:#04120b; background:linear-gradient(180deg,#5affa8,#22c46e);
+    border:none; border-radius:13px; cursor:pointer;
+    box-shadow:0 0 30px rgba(0,255,140,.4);
+    transition:transform .12s, box-shadow .12s;
+  }
+  .btn-main:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 0 44px rgba(0,255,140,.65); }
+  .btn-main:active { transform:translateY(0); }
+
+  .btn-ghost {
+    padding:10px 20px; font-size:13px; font-family:monospace; font-weight:bold;
+    color:#9fd6bd; background:rgba(0,255,140,.06);
+    border:1px solid rgba(0,255,140,.28); border-radius:10px; cursor:pointer;
+  }
+  .btn-ghost:hover { background:rgba(0,255,140,.14); color:#d8ffe9; }
+
+  /* ============ HUD ============ */
+  #ui {
+    position:fixed; top:0; left:0; right:0; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    color:#c9f7d8; font-family:monospace; font-size:15px;
+    pointer-events:none; user-select:none; flex-wrap:wrap;
+    opacity:0; transition:opacity .25s;
+  }
+  #ui.show { opacity:1; }
+  .stat {
+    background:rgba(10,22,26,.6); border:1px solid rgba(0,255,140,.22);
+    border-radius:10px; padding:6px 14px; text-shadow:0 0 10px rgba(0,255,140,.45);
+    white-space:nowrap;
+  }
+  #lives { color:#ff5d6c; text-shadow:0 0 10px rgba(255,60,90,.65); letter-spacing:2px; }
+  #level { color:#ffd479; }
+
+  /* ============ Строка ввода ============ */
+  #inputBar {
+    position:fixed; left:0; right:0; bottom:0;
+    padding:14px 20px 18px;
+    display:flex; align-items:center; gap:14px;
+    background:linear-gradient(180deg, rgba(6,14,18,0) 0%, rgba(6,14,18,0.85) 30%, rgba(6,14,18,0.97) 100%);
+    border-top:1px solid rgba(0,255,140,.18);
+    font-family:monospace; color:#d8ffe9;
+    user-select:none; pointer-events:none; backdrop-filter: blur(4px);
+    opacity:0; transition:opacity .25s;
+  }
+  #inputBar.show { opacity:1; }
+  #prompt { color:#4dffa1; font-size:20px; font-weight:bold;
+    text-shadow:0 0 10px rgba(0,255,140,.6); flex-shrink:0; }
+  #inputDisplay {
+    flex:1; min-width:0; font-size:20px; padding:10px 16px;
+    background:rgba(0,0,0,0.45); border:1px solid rgba(0,255,140,.25); border-radius:10px;
+    box-shadow: inset 0 0 18px rgba(0,255,140,.08);
+    white-space:pre; overflow:hidden; text-overflow:ellipsis;
+    letter-spacing:0.5px; transition:border-color .15s, box-shadow .15s;
+  }
+  #inputDisplay.active {
+    border-color: rgba(92,255,157,.65);
+    box-shadow: inset 0 0 22px rgba(0,255,140,.18), 0 0 18px rgba(0,255,140,.25);
+  }
+  #inputDisplay.error {
+    border-color:#ff5d6c;
+    box-shadow: inset 0 0 22px rgba(255,60,90,.2), 0 0 18px rgba(255,60,90,.35);
+  }
+  .typed { color:#5cff9d; text-shadow:0 0 10px rgba(92,255,157,.85); font-weight:bold; }
+  .cursor {
+    display:inline-block; width:2px; height:1.05em; vertical-align:-2px;
+    background:#5cff9d; margin:0 1px; box-shadow:0 0 8px #5cff9d;
+    animation: blink 1s steps(2, start) infinite;
+  }
+  @keyframes blink { to { opacity:0; } }
+  .rest { color:#cfeee0; }
+  .ghost { color:#5a7568; font-style:italic; }
+  #lastKey {
+    flex-shrink:0; min-width:52px; text-align:center;
+    padding:10px 12px; font-size:16px; font-weight:bold;
+    color:#7fe6b0; background:rgba(0,0,0,0.5);
+    border:1px solid rgba(0,255,140,.2); border-radius:10px;
+    text-shadow:0 0 8px rgba(0,255,140,.5);
+  }
+  #lastKey.bad { color:#ff8a98; border-color:rgba(255,80,110,.4);
+    text-shadow:0 0 8px rgba(255,60,90,.8); }
+
+  /* ============ КОНЕЦ ИГРЫ ============ */
+  #gameover {
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:24px; text-align:center;
+    background:rgba(4,8,12,.9); backdrop-filter:blur(6px);
+    opacity:0; pointer-events:none; transition:opacity .3s;
+    overflow-y:auto;
+  }
+  #gameover.show { opacity:1; pointer-events:auto; }
+  #gameover h1 {
+    font-family:monospace; font-size:clamp(26px, 5.4vw, 48px);
+    color:#ff5d6c; text-shadow:0 0 30px rgba(255,60,90,.55);
+  }
+  #gameover .big { font-size:24px; color:#4dffa1; font-family:monospace; }
+  #gameover p { max-width:600px; line-height:1.7; opacity:.85; font-size:15px; }
+  #gameover b { color:#ffd479; }
+
+  .save-block {
+    display:flex; gap:10px; align-items:center;
+    background:rgba(10,22,26,.7);
+    border:1px solid rgba(0,255,140,.25);
+    border-radius:12px; padding:12px 14px;
+    margin-top:6px; flex-wrap:wrap; justify-content:center;
+  }
+  .save-block input {
+    font-family:monospace; font-size:16px;
+    background:rgba(0,0,0,.5); color:#d8ffe9;
+    border:1px solid rgba(0,255,140,.3);
+    border-radius:9px; padding:10px 14px; outline:none;
+    width:220px;
+  }
+  .save-block input:focus { border-color:#5cff9d; box-shadow:0 0 14px rgba(92,255,157,.35); }
+  .save-block button {
+    padding:10px 22px; font-size:15px; font-family:monospace; font-weight:bold;
+    color:#04120b; background:linear-gradient(180deg,#5affa8,#22c46e);
+    border:none; border-radius:9px; cursor:pointer;
+  }
+  .save-block button:disabled { opacity:.5; cursor:default; }
+
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="splash">
+  <img src="https://static-algoritmika-org.ngcdn.ru/uploads/community/avatar/svg/70492408_1789827889.svg?t=1789827889"
+       alt="by Всеволод" referrerpolicy="no-referrer">
+  <div class="label">by <b>Всеволод</b></div>
+  <div class="bar"><i></i></div>
+  <div class="sub">POWERED BY PYTHON</div>
+</div>
+
+<div id="menu" class="hide">
+  <div class="logo">Python <span>Typing Rain</span></div>
+  <div class="tag">print("печатай и не дай упасть")</div>
+
+  <div class="menu-grid">
+    <div class="panel">
+      <h3>Статистика <span class="badge" id="modeBadge">…</span></h3>
+      <div class="stat-row"><span class="k">ТВОЙ РЕКОРД</span><span class="v record" id="bestScore">0</span></div>
+      <div class="stat-row"><span class="k">ИГР СЫГРАНО</span><span class="v" id="gamesPlayed">0</span></div>
+      <div class="stat-row"><span class="k">ЗАПИСЕЙ В ТОП-10</span><span class="v" id="lbCount">0</span></div>
+      <button class="btn-main" id="playBtn">▶ ИГРАТЬ</button>
+    </div>
+
+    <div class="panel">
+      <h3>🏆 Топ-10 игроков <span class="badge" id="lbSource">—</span></h3>
+      <div id="lbList"><div class="lb-loading">Загрузка рекордов…</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:4px;">
+    <button class="btn-ghost" id="resetBtn">Сбросить локальные данные</button>
+  </div>
+</div>
+
+<div id="ui">
+  <div class="stat">Очки: <span id="score">0</span></div>
+  <div class="stat">Уровень: <span id="level">0</span></div>
+  <div class="stat">Ускорение через: <span id="next">30</span>с</div>
+  <div class="stat" id="lives">♥♥♥♥♥</div>
+</div>
+
+<div id="inputBar">
+  <span id="prompt">&gt;&gt;&gt;</span>
+  <div id="inputDisplay" class="ghost">Начни печатать строку…</div>
+  <div id="lastKey">—</div>
+</div>
+
+<div id="gameover">
+  <h1>ИГРА ОКОНЧЕНА</h1>
+  <p class="big" id="finalScore">Очки: 0</p>
+  <p id="finalInfo"></p>
+
+  <div class="save-block" id="saveBlock">
+    <input type="text" id="playerName" maxlength="16" placeholder="Твоё имя" autocomplete="off">
+    <button id="saveScoreBtn">Отправить в топ</button>
+  </div>
+  <p id="saveStatus" style="font-size:13px; color:#7fa39a; min-height:18px;"></p>
+
+  <div style="display:flex; gap:12px; margin-top:6px; flex-wrap:wrap; justify-content:center;">
+    <button class="btn-main" style="width:auto; padding:14px 34px; margin:0;" id="againBtn">ЕЩЁ РАЗ</button>
+    <button class="btn-ghost" id="menuBtn">В МЕНЮ</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     МОДУЛЬНЫЙ FIREBASE SDK (v10+)
+     ============================================================ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getDatabase, ref, push, query,
+  orderByChild, limitToLast, onValue, set
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+/* ---------- Твой Firebase-конфиг ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyC2U2QA258NWLDHOyyq1HZKLEoi8bDlMy8",
+  authDomain: "python-typing-rain.firebaseapp.com",
+  databaseURL: "https://python-typing-rain-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "python-typing-rain",
+  storageBucket: "python-typing-rain.firebasestorage.app",
+  messagingSenderId: "56172421675",
+  appId: "1:56172421675:web:03f5f6c589ec8a6b16006e",
+  measurementId: "G-660DDS1THJ"
+};
+
+/* ---------- Инициализация ---------- */
+let db = null;
+let fbReady = false;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+  fbReady = true;
+} catch (e) {
+  console.warn('[Firebase] init failed:', e);
+}
+
+/* ============================================================
+   ЛИДЕРБОРД
+   ============================================================ */
+const Leaderboard = {
+  cache: [],
+  myKey: null,
+
+  init() {
+    if (!fbReady) {
+      this.renderError('Firebase не подключён');
+      return;
+    }
+    const scoresRef = query(
+      ref(db, 'scores'),
+      orderByChild('score'),
+      limitToLast(10)
+    );
+    onValue(scoresRef, (snap) => {
+      const rows = [];
+      snap.forEach((child) => {
+        const v = child.val() || {};
+        rows.push({
+          key: child.key,
+          name: String(v.name || 'Аноним').slice(0, 16),
+          score: Number(v.score) || 0,
+          level: Number(v.level) || 0,
+          time: Number(v.time) || 0,
+          ts: Number(v.ts) || Date.now()
+        });
+      });
+      rows.sort((a, b) => b.score - a.score || a.ts - b.ts);
+      this.cache = rows;
+      this.render();
+      document.getElementById('lbCount').textContent = rows.length;
+    }, (err) => {
+      console.warn('[Leaderboard] read error:', err);
+      this.renderError('Нет доступа к базе — проверь правила');
+    });
+  },
+
+  async submit(entry) {
+    if (!fbReady) throw new Error('Firebase не подключён');
+    const clean = {
+      name: String(entry.name || 'Аноним').slice(0, 16).trim() || 'Аноним',
+      score: Math.max(0, Math.floor(Number(entry.score) || 0)),
+      level: Math.max(0, Math.floor(Number(entry.level) || 0)),
+      time: Math.max(0, Math.floor(Number(entry.time) || 0)),
+      ts: Date.now()
+    };
+    const refNew = push(ref(db, 'scores'));
+    await set(refNew, clean);
+    this.myKey = refNew.key;
+    setTimeout(() => { this.myKey = null; this.render(); }, 5000);
+    return true;
+  },
+
+  renderError(msg) {
+    const el = document.getElementById('lbList');
+    if (el) el.innerHTML = `<div class="lb-empty">⚠ ${msg}</div>`;
+  },
+
+  render() {
+    const listEl = document.getElementById('lbList');
+    if (!listEl) return;
+    if (!this.cache.length) {
+      listEl.innerHTML = '<div class="lb-empty">Пока никто не записал рекорд.<br>Сыграй и займи первое место!</div>';
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    listEl.innerHTML = this.cache.map((row, i) => {
+      const rankCls = i === 0 ? 'g1' : i === 1 ? 'g2' : i === 2 ? 'g3' : '';
+      const isMe = this.myKey && row.key === this.myKey;
+      const rank = i < 3 ? medals[i] : (i + 1);
+      const name = String(row.name).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      return `<div class="lb-row${isMe ? ' me' : ''}">
+        <div class="lb-rank ${rankCls}">${rank}</div>
+        <div class="lb-name" title="${name}">${name}</div>
+        <div class="lb-score">${row.score}</div>
+      </div>`;
+    }).join('');
+  }
+};
+
+/* ============================================================
+   ОСТАЛЬНОЙ КОД ИГРЫ
+   ============================================================ */
+const splash = document.getElementById('splash');
+const menu   = document.getElementById('menu');
+const LEADERBOARD_READY = fbReady;
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    splash.classList.add('hide');
+    setTimeout(() => {
+      splash.classList.add('hidden');
+      menu.classList.remove('hide');
+      refreshMenuStats();
+      Leaderboard.init();
+
+      const modeBadge = document.getElementById('modeBadge');
+      const lbSource = document.getElementById('lbSource');
+      if (LEADERBOARD_READY) {
+        modeBadge.textContent = 'ONLINE';
+        modeBadge.className = 'badge';
+        lbSource.textContent = '🌐 все игроки';
+        lbSource.className = 'badge';
+      } else {
+        modeBadge.textContent = 'ОШИБКА';
+        modeBadge.className = 'badge err';
+        lbSource.textContent = '—';
+        lbSource.className = 'badge err';
+      }
+    }, 720);
+  }, 2600);
+});
+
+/* ----- Локальная статистика ----- */
+const LS = { best:'pytrain_best', games:'pytrain_games', name:'pytrain_name' };
+const bestScoreEl = document.getElementById('bestScore');
+const gamesPlayedEl = document.getElementById('gamesPlayed');
+const getBest  = () => parseInt(localStorage.getItem(LS.best)  || '0', 10) || 0;
+const getGames = () => parseInt(localStorage.getItem(LS.games) || '0', 10) || 0;
+const setBest  = (v) => localStorage.setItem(LS.best, String(v));
+const incGames = () => localStorage.setItem(LS.games, String(getGames() + 1));
+
+function refreshMenuStats() {
+  bestScoreEl.textContent = getBest();
+  gamesPlayedEl.textContent = getGames();
+  document.getElementById('lbCount').textContent = Leaderboard.cache.length;
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Сбросить локальные данные (рекорд, счётчик игр, имя)? Онлайн-топ не затрагивается.')) {
+    Object.values(LS).forEach(k => localStorage.removeItem(k));
+    refreshMenuStats();
+  }
+});
+
+/* ============================================================
+   ИГРА
+   ============================================================ */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const SNIPPETS = [
+  'print("qwe")', 'print("hi")', 'x = 5', 'y = x + 1',
+  'def foo():', 'return True', 'return None', 'import os', 'import sys',
+  'from math import pi', 'if x > 0:', 'else:', 'elif a == b:',
+  'for i in range(10):', 'while True:', 'break', 'continue', 'pass',
+  'try:', 'except ValueError:', 'finally:', 'raise Error()',
+  'class Dog:', 'def __init__(self):', 'self.name = name',
+  'lst = [1, 2, 3]', 'd = {"a": 1}', 's = "text"', 'n = len(lst)',
+  'a, b = b, a', 'lambda x: x * 2', 'yield x', 'assert x > 0',
+  'global counter', 'del lst[0]', 'x += 1', 'print(f"{x}")',
+  's.upper()', 'lst.append(7)', 'sorted(d.items())', 'print(*args)',
+  'result = map(int, s)', 'range(0, 10, 2)', 'dict(zip(a, b))',
+  'nums = list(range(3))', 'open("f.txt")', 'len("hello")'
+];
+
+const COLORS = [
+  { fill:'rgba(20,60,45,0.85)', stroke:'#3ce68b', text:'#dfffe9' },
+  { fill:'rgba(20,50,70,0.85)', stroke:'#4bc9ff', text:'#e0f4ff' },
+  { fill:'rgba(60,45,20,0.85)', stroke:'#ffc857', text:'#fff0c6' },
+  { fill:'rgba(60,25,45,0.85)', stroke:'#ff6bb5', text:'#ffe0ef' },
+  { fill:'rgba(45,30,70,0.85)', stroke:'#a98bff', text:'#ebe2ff' }
+];
+
+const MAX_LIVES = 5;
+const SPEED_STEP_TIME = 30;
+const BASE_SPEED = 22;
+const SPEED_GROWTH = 1.18;
+const BASE_SPAWN = 3.6;
+const SPAWN_GROWTH = 0.9;
+const MIN_SPAWN = 1.4;
+
+const state = {
+  running:false, time:0, score:0, lives:MAX_LIVES, level:0,
+  spawnTimer:0, items:[], particles:[], active:null,
+  flash:0, hurt:0, shake:0
+};
+
+const uiScore = document.getElementById('score');
+const uiLevel = document.getElementById('level');
+const uiNext = document.getElementById('next');
+const uiLives = document.getElementById('lives');
+const uiEl = document.getElementById('ui');
+const inputBar = document.getElementById('inputBar');
+const inputDisplay = document.getElementById('inputDisplay');
+const lastKeyEl = document.getElementById('lastKey');
+const gameoverEl = document.getElementById('gameover');
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const escapeHtml = (s) => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else {
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+}
+
+function spawn() {
+  const text = SNIPPETS[(Math.random() * SNIPPETS.length) | 0];
+  const fontSize = 20 + ((Math.random() * 5) | 0);
+  ctx.font = `bold ${fontSize}px monospace`;
+  const w = ctx.measureText(text).width + 30;
+  const h = fontSize + 22;
+  const maxX = Math.max(4, W - w - 8);
+  const speed = BASE_SPEED * Math.pow(SPEED_GROWTH, state.level);
+  state.items.push({
+    x: rand(4, maxX), y: -h, w, h, text, fontSize,
+    vy: speed * rand(0.9, 1.1),
+    color: COLORS[(Math.random() * COLORS.length) | 0],
+    typedCount: 0, wobble: Math.random() * Math.PI * 2, shake: 0
+  });
+}
+
+function burst(x, y, color, count = 16) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = rand(60, 320);
+    state.particles.push({
+      x, y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
+      life: rand(0.35, 0.85), maxLife: 0.85,
+      size: rand(1.5, 3.5), color
+    });
+  }
+}
+
+function update(dt) {
+  state.time += dt;
+  const nl = Math.floor(state.time / SPEED_STEP_TIME);
+  if (nl > state.level) { state.level = nl; state.flash = 1; state.shake = 0.35; }
+
+  state.spawnTimer -= dt;
+  if (state.spawnTimer <= 0) {
+    spawn();
+    const interval = Math.max(MIN_SPAWN, BASE_SPAWN * Math.pow(SPAWN_GROWTH, state.level));
+    state.spawnTimer = interval * rand(0.85, 1.15);
+  }
+
+  for (let i = state.items.length - 1; i >= 0; i--) {
+    const it = state.items[i];
+    it.y += it.vy * dt;
+    it.wobble += dt * 3;
+    if (it.shake > 0) it.shake = Math.max(0, it.shake - dt * 3);
+    if (it.y + it.h >= H) {
+      if (state.active === it) state.active = null;
+      state.items.splice(i, 1);
+      state.lives--;
+      state.hurt = 1; state.shake = 0.4;
+      burst(it.x + it.w / 2, H - 10, '#ff5d6c', 18);
+      if (state.lives <= 0) { state.lives = 0; gameOver(); return; }
+    }
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 520 * dt;
+    p.vx *= 0.98; p.life -= dt;
+    if (p.life <= 0) state.particles.splice(i, 1);
+  }
+}
+
+let bgOffset = 0;
+function render(dt) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#080d12'); g.addColorStop(0.55, '#0a1218'); g.addColorStop(1, '#050a0e');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  bgOffset = (bgOffset + dt * 18) % 40;
+  ctx.strokeStyle = 'rgba(0, 255, 140, 0.045)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < W; x += 40) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
+  for (let y = bgOffset; y < H; y += 40) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
+  ctx.stroke();
+
+  ctx.save();
+  if (state.shake > 0) {
+    const s = state.shake * 8;
+    ctx.translate(rand(-s, s), rand(-s, s));
+  }
+  for (const it of state.items) drawItem(it);
+  for (const p of state.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 80, 100, 0.35)'; ctx.lineWidth = 2;
+  ctx.setLineDash([12, 10]);
+  ctx.beginPath(); ctx.moveTo(0, H - 4); ctx.lineTo(W, H - 4); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (state.flash > 0) {
+    ctx.fillStyle = `rgba(60, 255, 150, ${state.flash * 0.18})`;
+    ctx.fillRect(0, 0, W, H);
+    state.flash = Math.max(0, state.flash - dt * 1.8);
+  }
+  if (state.hurt > 0) {
+    ctx.fillStyle = `rgba(255, 40, 70, ${state.hurt * 0.28})`;
+    ctx.fillRect(0, 0, W, H);
+    state.hurt = Math.max(0, state.hurt - dt * 1.8);
+  }
+  if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 2.5);
+}
+
+function drawItem(it) {
+  const c = it.color;
+  const isActive = state.active === it;
+  let ox = 0, oy = 0;
+  if (it.shake > 0) { ox = rand(-3, 3) * it.shake; oy = rand(-2, 2) * it.shake; }
+  const x = it.x + ox, y = it.y + oy;
+
+  ctx.shadowColor = c.stroke;
+  ctx.shadowBlur = isActive ? 26 : 14;
+  ctx.fillStyle = c.fill;
+  roundRect(x, y, it.w, it.h, 10); ctx.fill();
+
+  ctx.lineWidth = isActive ? 3 : 1.5;
+  ctx.strokeStyle = isActive ? '#ffffff' : c.stroke;
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.font = `bold ${it.fontSize}px monospace`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+
+  const typed = it.text.slice(0, it.typedCount);
+  const rest = it.text.slice(it.typedCount);
+  const fullW = ctx.measureText(it.text).width;
+  const startX = x + (it.w - fullW) / 2;
+  const baseY = y + it.h / 2 + 1;
+
+  if (typed) {
+    ctx.fillStyle = '#5cff9d'; ctx.shadowColor = '#5cff9d'; ctx.shadowBlur = 12;
+    ctx.fillText(typed, startX, baseY); ctx.shadowBlur = 0;
+  }
+  if (rest) {
+    ctx.fillStyle = isActive ? '#ffffff' : c.text;
+    ctx.fillText(rest, startX + ctx.measureText(typed).width, baseY);
+  }
+  if (isActive && rest.length > 0) {
+    const cx = startX + ctx.measureText(typed).width;
+    ctx.fillStyle = '#5cff9d';
+    ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 120) * 0.5;
+    ctx.fillRect(cx - 1, baseY - it.fontSize / 2, 2, it.fontSize);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function updateUI() {
+  uiScore.textContent = state.score;
+  uiLevel.textContent = state.level;
+  const left = Math.max(0, SPEED_STEP_TIME - (state.time % SPEED_STEP_TIME));
+  uiNext.textContent = state.running ? left.toFixed(1) : SPEED_STEP_TIME;
+  uiLives.textContent = '♥'.repeat(state.lives) + '♡'.repeat(MAX_LIVES - state.lives);
+}
+
+let errorTimer = 0;
+function updateInputBar() {
+  const it = state.active;
+  if (!state.running) {
+    inputDisplay.className = 'ghost';
+    inputDisplay.textContent = 'Начни печатать строку…';
+    return;
+  }
+  if (it && state.items.includes(it)) {
+    const typed = it.text.slice(0, it.typedCount);
+    const rest = it.text.slice(it.typedCount);
+    inputDisplay.className = 'active';
+    inputDisplay.innerHTML =
+      `<span class="typed">${escapeHtml(typed)}</span><span class="cursor"></span>` +
+      `<span class="rest">${escapeHtml(rest)}</span>`;
+  } else if (errorTimer > 0) {
+    inputDisplay.className = 'error';
+    inputDisplay.textContent = '✗ нет подходящей строки';
+  } else {
+    inputDisplay.className = 'ghost';
+    inputDisplay.textContent = 'Начни печатать строку…';
+  }
+}
+
+function flashLastKey(ch, ok) {
+  lastKeyEl.textContent = ch === ' ' ? '␣' : ch;
+  lastKeyEl.classList.toggle('bad', !ok);
+  lastKeyEl.style.opacity = '1';
+}
+
+function onKeyDown(e) {
+  if (!state.running) return;
+  if (e.key === 'Escape') {
+    if (state.active) state.active.typedCount = 0;
+    state.active = null; e.preventDefault(); return;
+  }
+  if (e.key.length !== 1) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  e.preventDefault();
+  const ch = e.key;
+
+  if (state.active && state.items.includes(state.active)) {
+    const it = state.active;
+    if (ch === it.text[it.typedCount]) {
+      it.typedCount++;
+      flashLastKey(ch, true);
+      if (it.typedCount >= it.text.length) completeItem(it);
+    } else {
+      it.shake = 1; errorTimer = 0.35; flashLastKey(ch, false);
+    }
+    return;
+  }
+
+  let best = null, bestY = -Infinity;
+  for (const it of state.items) {
+    if (it.text[0] === ch && it.y > bestY) { bestY = it.y; best = it; }
+  }
+  if (best) {
+    state.active = best; best.typedCount = 1;
+    flashLastKey(ch, true);
+    if (best.typedCount >= best.text.length) completeItem(best);
+  } else {
+    errorTimer = 0.35; flashLastKey(ch, false);
+  }
+}
+window.addEventListener('keydown', onKeyDown);
+
+function completeItem(it) {
+  const idx = state.items.indexOf(it);
+  if (idx >= 0) state.items.splice(idx, 1);
+  burst(it.x + it.w / 2, it.y + it.h / 2, it.color.stroke, 20);
+  state.score += 1;
+  state.flash = Math.max(state.flash, 0.3);
+  if (state.active === it) state.active = null;
+}
+
+let last = 0;
+function loop(ts) {
+  if (!last) last = ts;
+  let dt = (ts - last) / 1000;
+  last = ts;
+  if (dt > 0.08) dt = 0.08;
+
+  if (state.running) update(dt);
+  updateParticles(dt);
+  render(dt);
+  updateUI();
+
+  if (errorTimer > 0) errorTimer = Math.max(0, errorTimer - dt);
+  updateInputBar();
+
+  if (lastKeyEl.style.opacity !== '') {
+    let o = parseFloat(lastKeyEl.style.opacity || '1');
+    if (o > 0.35) { o -= dt * 0.8; lastKeyEl.style.opacity = o.toFixed(2); }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ============================================================
+   СТАРТ / КОНЕЦ
+   ============================================================ */
+const playBtn = document.getElementById('playBtn');
+const againBtn = document.getElementById('againBtn');
+const menuBtn = document.getElementById('menuBtn');
+const playerNameInput = document.getElementById('playerName');
+const saveScoreBtn = document.getElementById('saveScoreBtn');
+const saveStatus = document.getElementById('saveStatus');
+const saveBlock = document.getElementById('saveBlock');
+
+playerNameInput.value = localStorage.getItem(LS.name) || '';
+let scoreSubmitted = false;
+
+function startGame() {
+  menu.classList.add('hide');
+  gameoverEl.classList.remove('show');
+  scoreSubmitted = false;
+  saveStatus.textContent = '';
+  saveBlock.classList.remove('hidden');
+  saveScoreBtn.disabled = false;
+  saveScoreBtn.textContent = 'Отправить в топ';
+
+  Object.assign(state, {
+    running:true, time:0, score:0, lives:MAX_LIVES, level:0,
+    spawnTimer:0.6, active:null, flash:0, hurt:0, shake:0
+  });
+  state.items.length = 0;
+  state.particles.length = 0;
+  last = 0;
+
+  uiEl.classList.add('show');
+  inputBar.classList.add('show');
+  if (document.activeElement) document.activeElement.blur();
+}
+
+function gameOver() {
+  state.running = false;
+  state.active = null;
+
+  incGames();
+  const isRecord = state.score > getBest();
+  if (isRecord) setBest(state.score);
+
+  document.getElementById('finalScore').textContent = `Очки: ${state.score}`;
+  document.getElementById('finalInfo').innerHTML =
+    `Продержался <b>${state.time.toFixed(1)} сек</b> · Уровень <b>${state.level}</b> · Твой рекорд <b>${getBest()}</b>`;
+
+  gameoverEl.classList.add('show');
+  uiEl.classList.remove('show');
+  inputBar.classList.remove('show');
+  refreshMenuStats();
+
+  setTimeout(() => {
+    if (!playerNameInput.value.trim() || isRecord) playerNameInput.focus();
+  }, 300);
+}
+
+function backToMenu() {
+  gameoverEl.classList.remove('show');
+  menu.classList.remove('hide');
+  state.items.length = 0;
+  state.particles.length = 0;
+  uiEl.classList.remove('show');
+  inputBar.classList.remove('show');
+  refreshMenuStats();
+}
+
+saveScoreBtn.addEventListener('click', async () => {
+  if (scoreSubmitted) return;
+  const name = (playerNameInput.value || '').trim().slice(0, 16) || 'Аноним';
+  localStorage.setItem(LS.name, name);
+
+  saveScoreBtn.disabled = true;
+  saveScoreBtn.textContent = 'Отправка…';
+  saveStatus.style.color = '#7fa39a';
+  saveStatus.textContent = 'Отправляем рекорд в облако…';
+
+  try {
+    await Leaderboard.submit({
+      name,
+      score: state.score,
+      level: state.level,
+      time: Math.round(state.time)
+    });
+    scoreSubmitted = true;
+    saveScoreBtn.textContent = '✓ Отправлено';
+    saveStatus.style.color = '#5cff9d';
+    saveStatus.textContent = 'Рекорд записан в общий онлайн-топ!';
+  } catch (e) {
+    console.warn(e);
+    saveScoreBtn.disabled = false;
+    saveScoreBtn.textContent = 'Повторить';
+    saveStatus.style.color = '#ff8a98';
+    saveStatus.textContent = 'Не удалось отправить: ' + (e.message || e);
+  }
+});
+
+playerNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); saveScoreBtn.click(); }
+});
+
+playBtn.addEventListener('click', startGame);
+againBtn.addEventListener('click', startGame);
+menuBtn.addEventListener('click', backToMenu);
+</script>
+</body>
+</html>
